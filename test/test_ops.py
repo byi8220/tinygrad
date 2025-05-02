@@ -2860,6 +2860,25 @@ class TestOps(unittest.TestCase):
       lambda x,y,z,m: torch.nn.functional.scaled_dot_product_attention(x,y,z,is_causal=True,attn_mask=m),
       lambda x,y,z,m: Tensor.scaled_dot_product_attention(x,y,z,is_causal=True,attn_mask=m),
       expected=RuntimeError)
+    
+  def test_flash_attention(self):
+    helper_test_op([(32,8,16,64), (32,8,16,64), (32,8,16,64)], torch.nn.functional.scaled_dot_product_attention, Tensor.flash_attention)
+    helper_test_op([(32,8,16,64), (32,8,16,64), (32,8,16,64), (32,8,16,16)],
+                   lambda x,y,z,m: torch.nn.functional.scaled_dot_product_attention(x,y,z,attn_mask=m),
+                   lambda x,y,z,m: Tensor.flash_attention(x,y,z,attn_mask=m))
+
+  def test_flash_attention_mismatch_ls(self):
+    helper_test_op([(32,8,4,64), (32,8,16,64), (32,8,16,64)], torch.nn.functional.scaled_dot_product_attention, Tensor.flash_attention)
+
+  def test_flash_attention_causal(self):
+    helper_test_op([(32,8,16,64), (32,8,16,64), (32,8,16,64)],
+                   lambda x,y,z: torch.nn.functional.scaled_dot_product_attention(x,y,z,is_causal=True),
+                   lambda x,y,z: Tensor.flash_attention(x,y,z,is_causal=True))
+
+    self.helper_test_exception([(32,8,16,64), (32,8,16,64), (32,8,16,64), (32,8,16,16)],
+      lambda x,y,z,m: torch.nn.functional.scaled_dot_product_attention(x,y,z,is_causal=True,attn_mask=m),
+      lambda x,y,z,m: Tensor.flash_attention(x,y,z,is_causal=True,attn_mask=m),
+      expected=RuntimeError)
 
   def test_binary_crossentropy(self):
     helper_test_op([(32,10), (32,10)], lambda x,y: torch.nn.functional.binary_cross_entropy(x.sigmoid(),torch.clip(y,0,1)),

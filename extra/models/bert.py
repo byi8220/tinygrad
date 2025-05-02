@@ -255,10 +255,11 @@ class BertAttention:
     return attention_output
 
 class BertSelfAttention:
-  def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob):
+  def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob, attention_impl=Tensor.scaled_dot_product_attention):
     self.num_attention_heads = num_attention_heads
     self.attention_head_size = int(hidden_size / num_attention_heads)
     self.all_head_size = self.num_attention_heads * self.attention_head_size
+    self.attention = attention_impl
 
     self.query = Linear(hidden_size, self.all_head_size)
     self.key = Linear(hidden_size, self.all_head_size)
@@ -275,7 +276,7 @@ class BertSelfAttention:
     key_layer = self.transpose_for_scores(mixed_key_layer)
     value_layer = self.transpose_for_scores(mixed_value_layer)
 
-    context_layer = Tensor.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask, self.dropout)
+    context_layer = self.attention(query_layer, key_layer, value_layer, attention_mask, self.dropout)
 
     context_layer = context_layer.transpose(1, 2)
     context_layer = context_layer.reshape(context_layer.shape[0], context_layer.shape[1], self.all_head_size)

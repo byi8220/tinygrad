@@ -3827,6 +3827,27 @@ class Tensor(SimpleMathTrait):
       qk = qk + attn_mask
     return qk.cast(self.dtype).softmax(-1).dropout(dropout_p) @ value
 
+  def flash_attention(self, key:Tensor, value:Tensor, attn_mask:Tensor|None=None, dropout_p:float=0.0, is_causal:bool=False) -> Tensor:
+    """
+    Computes flash attention 1 (Dao et al., 2022)
+    `self` is the query tensor, `key` is the key tensor, and `value` is the value tensor.
+
+    - Described: https://paperswithcode.com/paper/flashattention-fast-and-memory-efficient
+    - Paper: https://arxiv.org/abs/2205.14135
+
+    ```python exec="true" source="above" session="tensor" result="python"
+    q = Tensor.randn(2, 4, 8)
+    k = Tensor.randn(2, 4, 8)
+    v = Tensor.randn(2, 4, 8)
+    print(q.scaled_dot_product_attention(k, v).numpy())
+    ```
+    """
+    fa_block_size = 1024 # TODO: Make this configurable
+    o = Tensor.zeros_like(self)
+
+    return o
+
+
   def _do_reduction(self, reduction:ReductionStr="mean") -> Tensor:
     if reduction not in get_args(ReductionStr): raise ValueError(f"{reduction=} must be one of {get_args(ReductionStr)}")
     reductions: dict[str, Callable[[Tensor], Tensor]] = {"mean": Tensor.mean, "sum": Tensor.sum, "none": lambda x: x}

@@ -3842,10 +3842,38 @@ class Tensor(SimpleMathTrait):
     print(q.scaled_dot_product_attention(k, v).numpy())
     ```
     """
-    fa_block_size = 1024 # TODO: Make this configurable
-    o = Tensor.zeros_like(self)
+    # This is a hardware dependent constant, stop hardcoding later
+    M = 2048
+    B, H, L, d = self.shape
+    b_c = math.ceil(M / (4*d))
+    b_r = min(b_c, d)
 
-    return o
+    o = Tensor.zeros_like(self)
+    l = Tensor.zeros((B,H,L) , device=self.device, dtype=self.dtype)
+    mask = Tensor.full((B,H,L), -float("inf"), device=self.device, dtype=self.dtype)
+
+    q_blocks = self.split(b_r, dim=-2)
+    k_blocks, v_blocks = key.split(b_c, dim=-2), value.split(b_c, dim=-2)
+
+    o_blocks = list(o.split(b_r, dim=-2))
+    l_blocks, mask_blocks = list(l.split(b_r, dim=-1)), list(mask.split(b_r, dim=-1))
+
+    # Processing one block at a time, we better be fully saturating that SRAM
+    for j in range(len(k_blocks)):
+      kj, vj = k_blocks[j], v_blocks[j]
+      for i in range(len(q_blocks)):
+        sij = q_blocks[i] @ kj.transpose(-2,-1)
+        mij = Tensor.max(sij, axis=-1)
+        pij = Tensor.exp(sij - mij.unsqueeze(-1))
+        lij = Tensor.sum(pij, axis=-1)
+
+        mi_new = mask_blocks[i].maximum(mij)
+        li_new = (Tensor.exp(mask_blocks[i] - mi_new) * l_blocks[i]) + (Tensor.exp(mij - mi_new) * lij)
+
+        mask_blocks[i] = mi_new
+        l_blocks[i] = li_new
+
+    return Tensor.cat(*o_blocks, dim=-2)
 
 
   def _do_reduction(self, reduction:ReductionStr="mean") -> Tensor:
